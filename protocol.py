@@ -1,15 +1,29 @@
 from collections import Counter
 
-from byzantine import symbol_pair_attack
+from byzantine import corrupt_pair
 from ecc import compute_k, ecc_encode, ecc_decode_majority, majority_symbol, msg_to_int
 from metrics import Metrics
 
 
+# consensus is only guaranteed if n >= 3t+1.
 def formula_holds(n, t):
     return n >= 3 * t + 1
 
 
-def phase_1_symbol_exchange(nodes, n, k, t, attack_type, metrics, verbose):
+def _fmt(values):
+    """Collapse {node_id: value} into a short summary.
+    If every honest node agrees, show it once; otherwise list the split."""
+    if not values:
+        return "n/a"
+    distinct = set(values.values())
+    if len(distinct) == 1:
+        v = next(iter(distinct))
+        return f"{v!r} (all {len(values)})"
+    return ", ".join(f"{nid}={v!r}" for nid, v in sorted(values.items()))
+
+
+# Phase 1: nodes exchange ECC symbols and honest nodes flag senders whose symbols do not match.
+def phase_1_symbol_exchange(nodes, n, k, t, metrics, verbose):
     metrics.start_phase_timer()
 
     int_registry = {}
@@ -28,10 +42,7 @@ def phase_1_symbol_exchange(nodes, n, k, t, attack_type, metrics, verbose):
                 continue
             y_recv = sender.encoded_symbols[receiver.node_id]
             true_pair = (y_recv, y_self)
-            if sender.byzantine:
-                pair = symbol_pair_attack(receiver.node_id, true_pair, attack_type)
-            else:
-                pair = true_pair
+            pair = corrupt_pair(receiver.node_id, true_pair) if sender.byzantine else true_pair
             sent[(sender.node_id, receiver.node_id)] = pair
             message_count += 1
 
@@ -73,12 +84,13 @@ def phase_1_symbol_exchange(nodes, n, k, t, attack_type, metrics, verbose):
                          message_count, honest_successes)
 
     if verbose:
-        print("\n--- Phase 1: Symbol Exchange ---")
-        for node in nodes:
-            if not node.byzantine:
-                print(f"  Node {node.node_id:02d}: |U_i|={node.matched_link_count()} / {n-1}  "
-                      f"threshold={threshold}  s1={node.success_phase1}")
+        s1_vals = {nd.node_id: nd.success_phase1 for nd in nodes if not nd.byzantine}
+        print(f"Phase 1  Symbol Exchange     s1={_fmt(s1_vals)}  "
+              f"threshold={threshold}/{n-1}  msgs={message_count}")
 
+
+# Phase 2: nodes update their success status and vote on whether to 
+# continue using binary Byzantine Agreement
 
 def phase_2_refinement_and_vote(nodes, n, t, metrics, verbose):
     metrics.start_phase_timer()
@@ -120,12 +132,10 @@ def phase_2_refinement_and_vote(nodes, n, t, metrics, verbose):
                          msg_count, honest_successes)
 
     if verbose:
-        print("\n--- Phase 2: Success Refinement + Vote ---")
-        for node in nodes:
-            if not node.byzantine:
-                print(f"  Node {node.node_id:02d}: s2={node.success_phase2}  "
-                      f"vote={node.vote}  |S1^[2]|={len(node.s2_one_set())}")
-        print(f"  Binary BA result: v* = {ba_result}")
+        s2_vals = {nd.node_id: nd.success_phase2 for nd in nodes if not nd.byzantine}
+        vote_vals = {nd.node_id: nd.vote for nd in nodes if not nd.byzantine}
+        print(f"Phase 2  Refine + Vote       s2={_fmt(s2_vals)}  "
+              f"votes={_fmt(vote_vals)}  BA*={ba_result}  msgs={msg_count}")
 
     return ba_result
 
@@ -135,6 +145,8 @@ def _binary_ba(nodes):
     return 1 if honest_votes.count(1) >= honest_votes.count(0) else 0
 
 
+# Phase 3: failed nodes repair their symbol using majority vote
+# then all nodes decode the final value.
 def phase_3_correction(nodes, n, k, t, metrics, verbose):
     metrics.start_phase_timer()
 
@@ -199,17 +211,14 @@ def phase_3_correction(nodes, n, k, t, metrics, verbose):
                          msg_count, sum(1 for nd in nodes if not nd.byzantine))
 
     if verbose:
-        print("\n--- Phase 3: Symbol Correction + Decode ---")
-        for node in nodes:
-            if not node.byzantine:
-                print(f"  Node {node.node_id:02d}: "
-                      f"corrected_sym={corrected_symbols.get(node.node_id)}  "
-                      f"output={node.output!r}")
+        out_vals = {nd.node_id: nd.output for nd in nodes if not nd.byzantine}
+        print(f"Phase 3  Correction + Decode output={_fmt(out_vals)}  msgs={msg_count}")
 
     return final
 
 
-def run_ociorcool(nodes, t, attack_type="conflicting", verbose=True, metrics=None):
+# Runs all three OciorCOOL phases and returns the final consensus result.
+def run_ociorcool(nodes, t, verbose=True, metrics=None):
     if metrics is None:
         metrics = Metrics()
 
@@ -223,26 +232,24 @@ def run_ociorcool(nodes, t, attack_type="conflicting", verbose=True, metrics=Non
     metrics.start_timer()
 
     if verbose:
-        print("\n" + "=" * 60)
-        print("OciorCOOL SIMULATION")
-        print("=" * 60)
-        print(f"  n={n}, t={t}, k={k}  (k = floor(t/5)+1)")
-        print(f"  Formula n >= 3t+1: {n} >= {3*t+1} -> {valid}")
-        print(f"  Attack type: {attack_type!r}")
-        summary = ", ".join(f"{nd.node_id}({'B' if nd.byzantine else 'H'})" for nd in nodes)
-        print(f"  Nodes: [{summary}]")
+        nodes_str = " ".join(f"{nd.node_id}{'B' if nd.byzantine else 'H'}" for nd in nodes)
+        print(f"\n{'='*60}")
+        print(f"OciorCOOL  n={n} t={t} k={k}   formula(n>=3t+1: {n}>={3*t+1}): "
+              f"{'OK' if valid else 'FAIL'}")
+        print(f"Nodes: {nodes_str}")
+        print("-" * 60)
 
     if not valid:
         if verbose:
-            print("\n  Formula violated -- safety not guaranteed. Split-brain failure:")
+            print("Formula violated -- safety not guaranteed.")
         honest_nodes = [nd for nd in nodes if not nd.byzantine]
         for idx, nd in enumerate(honest_nodes):
-            nd.set_output("Block A" if idx % 2 == 0 else "Block X")
+            nd.set_output("Bob transferred $500 to Alice" if idx % 2 == 0 else "Block X")
         metrics.stop_timer()
         metrics.record_phase("Formula violated -- aborted", 0, 0)
         return _build_result(nodes, metrics, "SAFETY VIOLATED", None, False)
 
-    phase_1_symbol_exchange(nodes, n, k, t, attack_type, metrics, verbose)
+    phase_1_symbol_exchange(nodes, n, k, t, metrics, verbose)
     ba_result = phase_2_refinement_and_vote(nodes, n, t, metrics, verbose)
 
     if ba_result == 0:
@@ -253,20 +260,18 @@ def run_ociorcool(nodes, t, attack_type="conflicting", verbose=True, metrics=Non
         metrics.record_phase("Phase 3: Skipped (BA=0, output bottom)", 0,
                              sum(1 for nd in nodes if not nd.byzantine))
         if verbose:
-            print("\n  Binary BA = 0 -> all honest nodes output bottom")
+            print("Phase 3  Skipped (BA*=0)     output='⊥' (all honest)")
     else:
         final_value = phase_3_correction(nodes, n, k, t, metrics, verbose)
 
     metrics.stop_timer()
 
     if verbose:
-        print("\n--- Final Node States ---")
-        for nd in nodes:
-            print(f"  {nd}")
-        print(f"\n  Consensus reached: {Metrics.check_consensus(nodes)}")
-        print(f"  Final agreed value: {final_value!r}")
-        metrics.print_report(nodes)
-        metrics.print_link_indicator_matrix(nodes)
+        print("-" * 60)
+        ok = Metrics.check_consensus(nodes)
+        print(f"Consensus: {'YES' if ok else 'NO'}   Final value: {final_value!r}")
+        print(f"Messages: {metrics.message_count}   Time: {metrics.execution_time():.4f}s")
+        print("=" * 60)
 
     return _build_result(nodes, metrics, final_value, ba_result, valid)
 

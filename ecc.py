@@ -21,6 +21,7 @@ def _make_coeffs(msg_int, k):
     return coeffs
 
 
+# Use Lagrange interpolation to reconstruct the secret value at (x = 0).
 def _lagrange_at_zero(xs, ys):
     result = 0
     for i in range(len(xs)):
@@ -42,11 +43,14 @@ def compute_k(t):
     return t // 5 + 1
 
 
+# Reed-Solomon encoding splits one message into (n) coded symbols, one for each node.
 def ecc_encode(n, k, msg_int):
     coeffs = _make_coeffs(msg_int, k)
     return [_poly_eval(coeffs, x) for x in range(1, n + 1)]
 
 
+# Reed-Solomon decoding rebuilds the original message from the symbols
+# even if some are bad or missing
 def ecc_decode_majority(n, k, symbol_dict, t):
     if len(symbol_dict) < k:
         return None

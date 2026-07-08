@@ -27,7 +27,7 @@ class Node:
         self.success_phase1 = None
         self.success_phase2 = None
         self.vote = 0
-        self.output = None
+        self.output = 'Bob transferred $5000 to Alice'
         self.received_symbol_pairs = {}
         self.received_si1 = {}
         self.received_si2 = {}
@@ -44,12 +44,14 @@ class Node:
     def set_link_indicator(self, sender_id, value):
         self.link_indicators[sender_id] = value
 
+    # Counts how many senders' symbol pairs matched what this node expected.
     def matched_link_count(self):
         return sum(self.link_indicators.values())
 
     def s0_set(self):
         return {j for j, s in self.received_si1.items() if s == 0}
 
+    # IDs of peers this node believes succeeded phase 2.
     def s2_one_set(self):
         return {j for j, s in self.received_si2.items() if s == 1}
 

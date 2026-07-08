@@ -70,10 +70,8 @@ class App(ctk.CTk):
         threading.Thread(target=self._do_run, args=(n, t), daemon=True).start()
 
     def _do_run(self, n, t):
-        import io, contextlib
         nodes = create_network(n, t)
-        with contextlib.redirect_stdout(io.StringIO()):
-            result = run_ociorcool(nodes, t=t, attack_type="honest", verbose=True)
+        result = run_ociorcool(nodes, t=t, verbose=True)
         self.after(0, lambda: self._finish(nodes, result))
 
     def _finish(self, nodes, result):
@@ -141,7 +139,7 @@ class NodeCanvas(tk.Canvas):
                 nd = self._nodes[i]
                 role = "Byzantine" if nd.byzantine else "Honest"
                 tip = f"Node {i} ({role})  output: {nd.output}"
-                tw = len(tip) * 6 + 10
+                tw = len(tip) * 7 + 20
                 tx, ty = e.x + 10, e.y - 18
                 self._tip = [
                     self.create_rectangle(tx, ty, tx + tw, ty + 18, fill="#222", outline="#555"),
