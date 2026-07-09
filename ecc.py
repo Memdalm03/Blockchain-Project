@@ -5,14 +5,14 @@ from itertools import combinations
 _PRIME = 257
 
 
-def _poly_eval(coeffs, x):
-    y = 0
+def _poly_eval(coeffs, x): #_poly_eval and _make_coeffs are used to split messages into symbols
+    y = 0                  #and encode them
     for i, c in enumerate(coeffs):
         y = (y + c * pow(x, i, _PRIME)) % _PRIME
     return y
 
 
-def _make_coeffs(msg_int, k):
+def _make_coeffs(msg_int, k): 
     coeffs = []
     seed = msg_int % _PRIME
     for _ in range(k):
@@ -38,7 +38,7 @@ def msg_to_int(message):
     digest = hashlib.sha256(message.encode()).hexdigest()
     return int(digest, 16) % _PRIME
 
-
+# returns the k value for the three protocols
 def compute_k(t):
     return t // 5 + 1
 
