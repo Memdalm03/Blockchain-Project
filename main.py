@@ -18,8 +18,8 @@ def create_network(total_nodes, byzantine_count, honest_values=None):
         nodes.append(Node(node_id=idx, value=f"BYZANTINE_{idx}", byzantine=True))
     return nodes
 
-
-def run_scenario(scenario_name, total_nodes, t, byzantine_count,
+#runs the scenario with values customized by the user (e.g. # of nodes, dishonest nodes)
+def run_scenario(scenario_name, total_nodes, t, byzantine_count,  
                  honest_values=None, verbose=False):
     nodes = create_network(total_nodes, byzantine_count, honest_values)
     result = run_ociorcool(nodes, t, verbose)
@@ -30,7 +30,8 @@ def run_scenario(scenario_name, total_nodes, t, byzantine_count,
     result["formula_valid"] = formula_holds(total_nodes, t)
     return result
 
-
+#Prints the summary of the OciorCOOL protocol execution into the terminal
+#Additional Data is provided about the consensus performed.
 def print_summary(results):
     col = {"Scenario": 18, "n": 5, "t": 5, "Byz": 5, "Formula": 9,
            "Consensus": 11, "Final Value": 18, "Msgs": 7, "Rounds": 8, "Time(s)": 10}
@@ -62,7 +63,7 @@ SCENARIOS = [
     {"scenario_name": "INVALID n=7 t=3", "total_nodes": 7, "t": 3, "byzantine_count": 3},
 ]
 
-
+#parses data for the OciorCOOL simulation, and executes print_summary() function
 def main():
     parser = argparse.ArgumentParser(description="OciorCOOL simulation")
     parser.add_argument("--verbose", "-v", action="store_true",
