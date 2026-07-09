@@ -4,9 +4,10 @@ from itertools import combinations
 
 _PRIME = 257
 
-
-def _poly_eval(coeffs, x): #_poly_eval and _make_coeffs are used to split messages into symbols
-    y = 0                  #and encode them
+#_poly_eval and _make_coeffs are used to split messages into symbols
+#and encode them.
+def _poly_eval(coeffs, x): 
+    y = 0                  
     for i, c in enumerate(coeffs):
         y = (y + c * pow(x, i, _PRIME)) % _PRIME
     return y
@@ -70,8 +71,8 @@ def ecc_decode_majority(n, k, symbol_dict, t):
             return candidate
     return None
 
-
-def majority_symbol(symbols):
+# returns most common symbol
+def majority_symbol(symbols):  
     if not symbols:
         return None
     val, count = Counter(symbols).most_common(1)[0]
