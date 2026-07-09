@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-
+#the nodes and protocol values (e.g. enclink indicators) for the simulation are instantiated.
 @dataclass
 class Node:
     node_id: int
@@ -57,7 +57,8 @@ class Node:
 
     def set_output(self, value):
         self.output = value
-
+    
+    #prints information of the nodes along with their roles, and protocol data (e.g. vote values). 
     def __str__(self):
         role = "Byzantine" if self.byzantine else "Honest   "
         return (f"Node {self.node_id:02d} | {role} | value={self.value!r:<12} | "
