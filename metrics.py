@@ -1,7 +1,7 @@
 import time
 from dataclasses import dataclass
 
-
+#records information about phase performance from simulation
 @dataclass
 class PhaseRecord:
     name: str
@@ -94,6 +94,7 @@ class Metrics:
             "honest_outputs": self.honest_outputs(nodes),
         }
 
+    #The total information about the simulation performance is reported in the terminal after execution
     def print_report(self, nodes):
         r = self.report(nodes)
         print("\n=== SIMULATION METRICS ===")
@@ -113,6 +114,7 @@ class Metrics:
                   f"successes={p['honest_successes']}  ({p['duration_s']}s)")
         print("==========================\n")
 
+    # the nodes with link indication is displayed
     def print_link_indicator_matrix(self, nodes):
         if not self.link_indicator_matrix:
             return
